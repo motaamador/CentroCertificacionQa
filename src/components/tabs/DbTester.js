@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Database, Play, ChevronDown } from "lucide-react";
+import { Database, Play, ChevronDown, Terminal, Code } from "lucide-react";
 import { SectionHeader, ResultPanel } from "@/components/ui";
+import FnTester from "./FnTester";
 
 // ── Presets agrupados por categoría ───────────────────────────────────────
 const PRESET_GROUPS = [
@@ -147,6 +148,7 @@ WHERE valores_caracteristicas IS NOT NULL`,
 const ALL_PRESETS = PRESET_GROUPS.flatMap(g => g.items);
 
 export default function DbTester() {
+  const [subTab, setSubTab] = useState("sql");
   const [connStr, setConnStr] = useState("");
   const [query, setQuery] = useState("SELECT 1 AS health, current_database() AS bd, current_user AS usuario, now() AS hora_servidor");
   const [assertMaxMs, setAssertMaxMs] = useState("200");
@@ -190,8 +192,32 @@ export default function DbTester() {
         color="#8b5cf6"
       />
 
-      {/* Connection */}
-      <div className="qa-card" style={{ marginBottom: 16 }}>
+      {/* Tabs Menu */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        <button
+          onClick={() => setSubTab("sql")}
+          style={{
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+            background: subTab === "sql" ? "var(--accent-purple)" : "var(--bg-surface)",
+            color: subTab === "sql" ? "white" : "var(--text-secondary)",
+            transition: "all 0.2s"
+          }}
+        ><Terminal size={14} style={{display: "inline", verticalAlign: "middle", marginRight: 6}}/> SQL Libre</button>
+        <button
+          onClick={() => setSubTab("fn")}
+          style={{
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+            background: subTab === "fn" ? "var(--accent-yellow)" : "var(--bg-surface)",
+            color: subTab === "fn" ? "white" : "var(--text-secondary)",
+            transition: "all 0.2s"
+          }}
+        ><Code size={14} style={{display: "inline", verticalAlign: "middle", marginRight: 6}}/> Funciones QA Suite</button>
+      </div>
+
+      {subTab === "sql" ? (
+        <>
+          {/* Connection */}
+          <div className="qa-card" style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Cadena de Conexión (opcional)
         </div>
@@ -356,6 +382,10 @@ export default function DbTester() {
             </tbody>
           </table>
         </motion.div>
+      )}
+        </>
+      ) : (
+        <FnTester />
       )}
     </div>
   );

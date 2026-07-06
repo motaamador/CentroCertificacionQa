@@ -10,6 +10,8 @@ import ConnectivityTester from "@/components/tabs/ConnectivityTester";
 import CurlRunner from "@/components/tabs/CurlRunner";
 import ReportTab from "@/components/tabs/ReportTab";
 import HistoryTab from "@/components/tabs/HistoryTab";
+import SqlAnalyzer from "@/components/tabs/SqlAnalyzer";
+import TestCollections from "@/components/tabs/TestCollections";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -23,7 +25,9 @@ export default function App() {
       case "connectivity": return <ConnectivityTester />;
       case "curl":         return <CurlRunner />;
       case "report":       return <ReportTab />;
-      case "history":      return <HistoryTab />;
+      case "sql-analyzer":  return <SqlAnalyzer />;
+      case "collections":   return <TestCollections />;
+      case "history":       return <HistoryTab />;
       default:             return <Dashboard onNavigate={setActiveTab} />;
     }
   };

@@ -26,6 +26,7 @@ const MODULE_LABEL = {
   db:           "DB Tester",
   connectivity: "Connectivity",
   curl:         "cURL Runner",
+  sql:          "SQL Analyzer",
 };
 
 // ── Estilos ───────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ function makeStyles(branding) {
     },
     // Header
     header: {
-      backgroundColor: branding.color_primary,
+      backgroundColor: "#ffffff",
       paddingVertical: 20,
       paddingHorizontal: 32,
       flexDirection: "row",
@@ -51,8 +52,8 @@ function makeStyles(branding) {
     },
     logo: { width: 160, height: 56, objectFit: "contain" },
     headerRight: { alignItems: "flex-end" },
-    headerTitle: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#ffffff", marginBottom: 3 },
-    headerSub:   { fontSize: 8,  color: "rgba(255,255,255,0.75)" },
+    headerTitle: { fontSize: 16, fontFamily: "Helvetica-Bold", color: branding.color_primary, marginBottom: 3 },
+    headerSub:   { fontSize: 8,  color: "#64748b" },
 
     // Accent bar
     accentBar: { height: 4, backgroundColor: branding.color_accent },
@@ -129,14 +130,15 @@ function makeStyles(branding) {
       left: 0,
       right: 0,
       height: 40,
-      backgroundColor: branding.color_primary,
+      backgroundColor: "#ffffff",
+      borderTop: "1 solid #e2e8f0",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: 32,
     },
-    footerText:  { fontSize: 7.5, color: "rgba(255,255,255,0.7)" },
-    footerPage:  { fontSize: 7.5, color: "rgba(255,255,255,0.9)", fontFamily: "Helvetica-Bold" },
+    footerText:  { fontSize: 7.5, color: "#64748b" },
+    footerPage:  { fontSize: 7.5, color: branding.color_primary, fontFamily: "Helvetica-Bold" },
   });
 }
 
@@ -158,7 +160,7 @@ export function QAReportDocument({ items, meta, branding, logoBase64 }) {
           {logoBase64 ? (
             <Image src={logoBase64} style={S.logo} />
           ) : (
-            <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: "#ffffff" }}>
+            <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: branding.color_primary }}>
               {branding.nombre}
             </Text>
           )}
@@ -277,6 +279,53 @@ export function QAReportDocument({ items, meta, branding, logoBase64 }) {
                   </View>
                 ) : null}
 
+                {/* SQL Query Preview */}
+                {item.sqlQuery ? (
+                  <View style={S.outputBlock}>
+                    <Text style={S.outputText}>
+                      {item.sqlQuery.slice(0, 400)}{item.sqlQuery.length > 400 ? "\n..." : ""}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* SQL Warnings */}
+                {item.sqlWarnings?.length > 0 ? (
+                  <View style={{ marginBottom: 8, paddingHorizontal: 12 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#d97706", marginBottom: 4 }}>Advertencias y Antipatrones:</Text>
+                    {item.sqlWarnings.map((w, i) => (
+                      <View key={i} style={{ marginBottom: 4, paddingLeft: 6, borderLeft: "2 solid #d97706" }}>
+                        <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#334155" }}>{w.title}</Text>
+                        <Text style={{ fontSize: 8, color: "#64748b" }}>{w.msg}</Text>
+                        {w.fix ? <Text style={{ fontSize: 8, color: "#16a34a", marginTop: 1 }}>Sugerencia: {w.fix}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {/* SQL Locks */}
+                {item.sqlLocks?.length > 0 ? (
+                  <View style={{ marginBottom: 8, paddingHorizontal: 12 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#dc2626", marginBottom: 4 }}>Riesgos de Bloqueo:</Text>
+                    {item.sqlLocks.map((l, i) => (
+                      <View key={i} style={{ marginBottom: 4, paddingLeft: 6, borderLeft: "2 solid #dc2626" }}>
+                        <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#334155" }}>{l.type}</Text>
+                        <Text style={{ fontSize: 8, color: "#64748b" }}>{l.msg}</Text>
+                        {l.advice ? <Text style={{ fontSize: 8, color: "#16a34a", marginTop: 1 }}>Sugerencia: {l.advice}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {/* SQL Explain Plan Preview */}
+                {item.explainPlan ? (
+                  <View style={S.outputBlock}>
+                    <Text style={S.outputText}>
+                      {JSON.stringify(item.explainPlan, null, 2).slice(0, 600)}
+                      {JSON.stringify(item.explainPlan).length > 600 ? "\n..." : ""}
+                    </Text>
+                  </View>
+                ) : null}
+
                 {/* API Response Body preview */}
                 {item.responseBody ? (
                   <View style={S.outputBlock}>
@@ -284,6 +333,79 @@ export function QAReportDocument({ items, meta, branding, logoBase64 }) {
                       {(typeof item.responseBody === "string" ? item.responseBody : JSON.stringify(item.responseBody, null, 2)).slice(0, 400)}
                       {(typeof item.responseBody === "string" ? item.responseBody.length : JSON.stringify(item.responseBody).length) > 400 ? "\n..." : ""}
                     </Text>
+                  </View>
+                ) : null}
+
+                {/* Collection step results */}
+                {item.type === "collection" && item.stepResults?.length > 0 ? (
+                  <View style={{ marginTop: 6, paddingHorizontal: 12 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#334155", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Detalle de Pasos ({item.stepResults.length}):
+                    </Text>
+                    {item.stepResults.map((step, si) => {
+                      const stepColor = step.ok ? "#16a34a" : "#dc2626";
+                      return (
+                        <View key={si} style={{ marginBottom: 10, borderLeft: `3 solid ${stepColor}`, paddingLeft: 8 }}>
+                          {/* Step header */}
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                            <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: stepColor }}>
+                              {step.ok ? "✓" : "✗"}
+                            </Text>
+                            <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e293b", flex: 1 }}>
+                              #{si + 1} {step.stepName}
+                            </Text>
+                            <Text style={{ fontSize: 8, color: "#64748b" }}>
+                              {step.type === "db" ? "DB" : "HTTP"}
+                              {step.status > 0 ? `  ·  ${step.status}` : ""}
+                              {step.latency > 0 ? `  ·  ${step.latency}ms` : ""}
+                            </Text>
+                          </View>
+
+                          {/* URL or Query */}
+                          {step.url ? (
+                            <Text style={{ fontSize: 7.5, color: "#64748b", fontFamily: "Courier", marginBottom: 3 }}>
+                              {step.url.slice(0, 80)}{step.url.length > 80 ? "..." : ""}
+                            </Text>
+                          ) : null}
+                          {step.query ? (
+                            <Text style={{ fontSize: 7.5, color: "#64748b", fontFamily: "Courier", marginBottom: 3 }}>
+                              {step.query.slice(0, 80)}{step.query.length > 80 ? "..." : ""}
+                            </Text>
+                          ) : null}
+
+                          {/* Error */}
+                          {step.error ? (
+                            <Text style={{ fontSize: 8, color: "#dc2626", marginBottom: 3 }}>Error: {step.error}</Text>
+                          ) : null}
+
+                          {/* Assertions */}
+                          {step.assertionResults?.length > 0 ? (
+                            <View style={{ marginBottom: 3 }}>
+                              <Text style={{ fontSize: 8, color: "#64748b", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>Aserciones:</Text>
+                              {step.assertionResults.map((a, ai) => (
+                                <View key={ai} style={{ flexDirection: "row", gap: 4, marginBottom: 1 }}>
+                                  <Text style={{ fontSize: 7.5, color: a.ok ? "#16a34a" : "#dc2626", fontFamily: "Helvetica-Bold" }}>
+                                    {a.ok ? "✓" : "✗"}
+                                  </Text>
+                                  <Text style={{ fontSize: 7.5, color: "#475569", flex: 1 }}>
+                                    [{a.target}] {a.operator}{a.path ? ` (${a.path})` : ""} → {a.message}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
+
+                          {/* Response preview */}
+                          {step.response ? (
+                            <View style={{ backgroundColor: "#f8fafc", borderRadius: 3, padding: 5 }}>
+                              <Text style={{ fontSize: 7, color: "#64748b", fontFamily: "Courier", lineHeight: 1.4 }}>
+                                {step.response.slice(0, 300)}{step.response.length > 300 ? "\n..." : ""}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })}
                   </View>
                 ) : null}
 

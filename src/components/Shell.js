@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Activity, ShieldAlert, Database,
   Wifi, History, ChevronLeft, ChevronRight,
-  Shield, Zap, Terminal, FileText
+  Shield, Zap, Terminal, FileText, Search, Layers
 } from "lucide-react";
 
 const NAV = [
@@ -15,13 +15,37 @@ const NAV = [
   { id: "database",     label: "DB Tester",       icon: Database,        color: "#8b5cf6" },
   { id: "connectivity", label: "Connectivity",    icon: Wifi,            color: "#f59e0b" },
   { id: "curl",         label: "cURL Runner",     icon: Terminal,        color: "#06b6d4" },
+  { id: "sql-analyzer",    label: "SQL Analyzer",   icon: Search,  color: "#06b6d4" },
+  { id: "collections",    label: "Colecciones",    icon: Layers,  color: "#8b5cf6" },
+  { id: "history",        label: "History",        icon: History, color: "#64748b" },
   { id: "report",       label: "Reporte PDF",     icon: FileText,        color: "#6366f1" },
-  { id: "history",      label: "History",         icon: History,         color: "#64748b" },
 ];
 
 export default function Shell({ activeTab, onTabChange, children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [qaEnv, setQaEnv] = useState("dev");
+
+  const [timeStr, setTimeStr] = useState("");
+
+  useEffect(() => {
+    setTimeStr(new Date().toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" }));
+    const interval = setInterval(() => {
+      setTimeStr(new Date().toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" }));
+    }, 60000);
+
+    const saved = localStorage.getItem("qa_env");
+    if (saved) setQaEnv(saved);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleEnvChange = (e) => {
+    const val = e.target.value;
+    setQaEnv(val);
+    localStorage.setItem("qa_env", val);
+    window.dispatchEvent(new Event('qa_env_changed'));
+  };
 
   const current = NAV.find(n => n.id === activeTab) || NAV[0];
 
@@ -155,10 +179,18 @@ export default function Shell({ activeTab, onTabChange, children }) {
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 20, border: "1px solid var(--border)", background: "var(--bg-card)" }}>
+              <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 500 }}>Entorno:</span>
+              <select value={qaEnv} onChange={handleEnvChange} style={{ background: "transparent", border: "none", color: qaEnv === "prod" ? "#ef4444" : qaEnv === "qa" ? "#f59e0b" : "var(--accent-green)", fontSize: 11, fontWeight: "bold", outline: "none", cursor: "pointer" }}>
+                <option value="dev">Desarrollo (DEV)</option>
+                <option value="qa">Certificación (QA)</option>
+                <option value="prod">Producción (PROD)</option>
+              </select>
+            </div>
             <div style={{
               display: "flex", alignItems: "center", gap: 6,
               padding: "4px 10px", borderRadius: 20, border: "1px solid var(--border)",
-              background: "var(--bg-card)"
+              background: "var(--bg-card)", display: "none"
             }}>
               <Zap size={11} color="var(--accent-yellow)" />
               <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 500 }}>Sistema Activo</span>
@@ -166,7 +198,7 @@ export default function Shell({ activeTab, onTabChange, children }) {
             <div style={{
               fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-geist-mono)"
             }}>
-              {new Date().toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}
+              {timeStr}
             </div>
           </div>
         </header>

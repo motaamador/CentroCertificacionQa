@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Download, Trash2, CheckSquare, Square, Filter, User, RefreshCw } from "lucide-react";
+import { FileText, Download, Trash2, CheckSquare, Square, Filter, User, RefreshCw, Eye, X } from "lucide-react";
 import { SectionHeader, StatusBadge } from "@/components/ui";
 
 const MODULE_LABEL = {
@@ -11,10 +11,13 @@ const MODULE_LABEL = {
   db:           "DB Tester",
   connectivity: "Connectivity",
   curl:         "cURL Runner",
+  fn:           "Function QA",
+  sql:          "SQL Analyzer",
+  collection:   "Colección de Pruebas",
 };
 
 const MODULE_ICON = {
-  api: "🌐", security: "🛡️", db: "🗄️", connectivity: "📡", curl: "💻",
+  api: "🌐", security: "🛡️", db: "🗄️", connectivity: "📡", curl: "💻", fn: "⚙️", sql: "🔎", collection: "🧪",
 };
 
 const STATUS_COLOR = {
@@ -47,6 +50,7 @@ export default function ReportTab() {
   // Estado de generación
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   // ── Filtrado ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -107,7 +111,7 @@ export default function ReportTab() {
   };
 
   // ── Generar PDF ───────────────────────────────────────────────────────────
-  const generatePDF = async () => {
+  const generatePDF = async (action = 'download') => {
     const items = selected.size > 0
       ? [...selected].sort((a, b) => a - b).map(i => history[i])
       : filtered;
@@ -132,14 +136,18 @@ export default function ReportTab() {
         throw new Error(err.error || `HTTP ${res.status}`);
       }
 
-      // Descargar el PDF
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `QA_Reporte_${new Date().toISOString().slice(0, 10)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+
+      if (action === 'preview') {
+        setPreviewUrl(url);
+      } else {
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `QA_Reporte_${new Date().toISOString().slice(0, 10)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     } catch (err) {
       setError(`Error: ${err.message}`);
     }
@@ -310,16 +318,70 @@ export default function ReportTab() {
             ? `Se incluirán todos los filtrados: ${filtered.length} item(s)`
             : "Sin items"}
         </div>
-        <button
-          className="btn-primary"
-          onClick={generatePDF}
-          disabled={loading || (history.length === 0)}
-          style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", gap: 8, minWidth: 180, justifyContent: "center" }}>
-          {loading
-            ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> Generando PDF...</>
-            : <><Download size={14} /> Descargar PDF ({selectedCount})</>}
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="btn-ghost"
+            onClick={() => generatePDF('preview')}
+            disabled={loading || (history.length === 0)}
+            style={{ gap: 8, minWidth: 140, justifyContent: "center" }}>
+            {loading
+              ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> Generando...</>
+              : <><Eye size={14} /> Previsualizar</>}
+          </button>
+          <button
+            className="btn-primary"
+            onClick={() => generatePDF('download')}
+            disabled={loading || (history.length === 0)}
+            style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", gap: 8, minWidth: 160, justifyContent: "center" }}>
+            <Download size={14} /> Descargar PDF
+          </button>
+        </div>
       </div>
+
+      {/* Modal de Previsualización */}
+      <AnimatePresence>
+        {previewUrl && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.8)",
+              backdropFilter: "blur(4px)", display: "flex", flexDirection: "column",
+              padding: "20px 40px"
+            }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ color: "white", margin: 0, fontSize: 18, fontWeight: 600 }}>Vista Previa del Reporte QA</h2>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    const a = document.createElement("a");
+                    a.href = previewUrl;
+                    a.download = `QA_Reporte_${new Date().toISOString().slice(0, 10)}.pdf`;
+                    a.click();
+                  }}
+                  style={{ background: "var(--accent-green)" }}>
+                  <Download size={14} /> Descargar
+                </button>
+                <button
+                  onClick={() => {
+                    URL.revokeObjectURL(previewUrl);
+                    setPreviewUrl(null);
+                  }}
+                  style={{
+                    background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%",
+                    width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", cursor: "pointer"
+                  }}>
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: 1, background: "white", borderRadius: 8, overflow: "hidden", border: "1px solid #333" }}>
+              <iframe src={previewUrl} style={{ width: "100%", height: "100%", border: "none" }} title="PDF Preview" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

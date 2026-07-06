@@ -1,7 +1,6 @@
 // src/app/api/collections/route.js
 // Motor de ejecución de Colecciones de Prueba con Aserciones y Capturas de Variables
 
-import { Pool } from "pg";
 
 // ── Variable resolver ─────────────────────────────────────────────────────────
 function resolveVars(str, vars) {
@@ -62,19 +61,10 @@ function evaluateAssertion(assertion, ctx) {
 }
 
 // ── DB Pool ───────────────────────────────────────────────────────────────────
-let pool = null;
+import { getServerPool } from "@/lib/pg-pool";
+
 function getPool() {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 8000,
-      max: 2,
-      ssl: process.env.DATABASE_URL?.includes("neon.tech") || process.env.DATABASE_URL?.includes("supabase")
-        ? { rejectUnauthorized: false } : false,
-    });
-    pool.on("connect", (c) => c.query("SET search_path TO invme, public"));
-  }
-  return pool;
+  return getServerPool("DATABASE_URL");
 }
 
 // ── Step runners ──────────────────────────────────────────────────────────────

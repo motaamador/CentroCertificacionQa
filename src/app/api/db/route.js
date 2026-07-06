@@ -1,80 +1,25 @@
 // src/app/api/db/route.js
 // DB Tester — conexión REAL a PostgreSQL vía driver pg
+//
+// SEGURIDAD:
+//   - Si el usuario envía su propio connStr → pool TEMPORAL por request (withTempPool).
+//   - Si se usa el DATABASE_URL del servidor  → pool PERSISTENTE (getServerPool).
+//   Los pools de usuario nunca se comparten entre requests.
 
-import { Pool } from "pg";
+import { getServerPool, withTempPool } from "@/lib/pg-pool";
 
-// Pool compartido (se reutiliza entre requests)
-let pool = null;
+async function runQuery({ connStr, query, assertMaxMs, benchmarkRuns }) {
+  // ── Elegir estrategia de pool ─────────────────────────────────────────────
+  const useCustom = Boolean(connStr?.trim());
 
-function getPool(connStr) {
-  // Si se pasa una connection string custom desde el formulario, úsala.
-  // Si no, cae al DATABASE_URL del .env.local
-  const connectionString = connStr || process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    return null;
-  }
-
-  // Crear un pool nuevo si no existe o si cambió la connection string
-  if (!pool || pool._connectionString !== connectionString) {
-    pool = new Pool({
-      connectionString,
-      connectionTimeoutMillis: 8000,
-      idleTimeoutMillis: 10000,
-      max: 3,
-      ssl: connectionString.includes("sslmode=require") || connectionString.includes("neon.tech") || connectionString.includes("supabase")
-        ? { rejectUnauthorized: false }
-        : false,
-    });
-    // Establecer search_path al esquema invme por defecto
-    pool.on("connect", (client) => {
-      client.query("SET search_path TO invme, public");
-    });
-    pool._connectionString = connectionString;
-  }
-
-  return pool;
-}
-
-export async function POST(request) {
-  try {
-    const {
-      connStr,
-      query,
-      assertMaxMs = 100,
-      benchmarkRuns = 1,
-    } = await request.json();
-
-    // ── Validaciones básicas ─────────────────────────────────────────────
-    if (!query?.trim()) {
-      return Response.json({ status: "fail", message: "Query requerida" }, { status: 400 });
-    }
-
-    const connectionString = connStr || process.env.DATABASE_URL;
-
-    if (!connectionString) {
-      return Response.json({
-        status: "fail",
-        message: "No hay conexión configurada",
-        details: [
-          "Opción 1: Ingresa la cadena de conexión en el formulario",
-          "Opción 2: Define DATABASE_URL en el archivo .env.local",
-          "Formato: postgresql://usuario:contraseña@host:5432/base_de_datos",
-        ],
-      });
-    }
-
-    // ── Crear pool ────────────────────────────────────────────────────────
-    const db = getPool(connectionString);
-
-    // ── Test de conectividad primero ──────────────────────────────────────
+  const exec = async (pool) => {
     let client;
     try {
-      client = await db.connect();
+      client = await pool.connect();
     } catch (connErr) {
       return Response.json({
         status: "fail",
-        message: `No se pudo conectar a PostgreSQL`,
+        message: "No se pudo conectar a PostgreSQL",
         details: [
           `Error: ${connErr.message}`,
           "Verifica host, puerto, usuario y contraseña",
@@ -83,7 +28,6 @@ export async function POST(request) {
       });
     }
 
-    // ── Ejecutar query (con benchmark si aplica) ──────────────────────────
     const runs = Math.min(Math.max(benchmarkRuns, 1), 20);
     const latencies = [];
     let lastResult = null;
@@ -97,13 +41,12 @@ export async function POST(request) {
       } catch (queryErr) {
         queryError = queryErr;
         latencies.push(Date.now() - start);
-        break; // No repetir si la query falla
+        break;
       }
     }
 
-    client.release(); // Devolver conexión al pool
+    client.release();
 
-    // ── Si la query falló ─────────────────────────────────────────────────
     if (queryError) {
       return Response.json({
         status: "fail",
@@ -116,24 +59,14 @@ export async function POST(request) {
       });
     }
 
-    // ── Calcular estadísticas ─────────────────────────────────────────────
     const avg = Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length);
     const min = Math.min(...latencies);
     const max = Math.max(...latencies);
     const latencyOk = avg <= assertMaxMs;
 
-    // Limitar filas devueltas a 50 para no sobrecargar la UI
     const rows = (lastResult?.rows || []).slice(0, 50);
     const rowCount = lastResult?.rowCount ?? rows.length;
     const command = lastResult?.command || "QUERY";
-
-    const details = [
-      `Comando: ${command}`,
-      `Filas afectadas/retornadas: ${rowCount}`,
-      `Latencia avg: ${avg}ms`,
-      runs > 1 ? `Runs: ${runs} | Min: ${min}ms | Max: ${max}ms` : null,
-      !latencyOk ? `⚠ Latencia ${avg}ms supera límite de ${assertMaxMs}ms` : `✓ Dentro del límite de ${assertMaxMs}ms`,
-    ].filter(Boolean);
 
     return Response.json({
       status: latencyOk ? "pass" : "warn",
@@ -141,13 +74,55 @@ export async function POST(request) {
         ? `✅ Query ejecutada en ${avg}ms`
         : `⚠ Query lenta: ${avg}ms (límite: ${assertMaxMs}ms)`,
       latency: avg,
-      details,
+      details: [
+        `Comando: ${command}`,
+        `Filas afectadas/retornadas: ${rowCount}`,
+        `Latencia avg: ${avg}ms`,
+        runs > 1 ? `Runs: ${runs} | Min: ${min}ms | Max: ${max}ms` : null,
+        !latencyOk ? `⚠ Latencia ${avg}ms supera límite de ${assertMaxMs}ms` : `✓ Dentro del límite de ${assertMaxMs}ms`,
+      ].filter(Boolean),
       rows,
       rowCount,
       command,
       benchmarkStats: runs > 1 ? { avg, min, max, runs } : null,
     });
+  };
 
+  // Pool temporal para connStr del usuario → aislado por request
+  if (useCustom) {
+    return withTempPool(connStr.trim(), "invme, public", exec);
+  }
+
+  // Pool persistente para DATABASE_URL del servidor
+  const pool = getServerPool("DATABASE_URL");
+  if (!pool) {
+    return Response.json({
+      status: "fail",
+      message: "No hay conexión configurada",
+      details: [
+        "Opción 1: Ingresa la cadena de conexión en el formulario",
+        "Opción 2: Define DATABASE_URL en el archivo .env.local",
+        "Formato: postgresql://usuario:contraseña@host:5432/base_de_datos",
+      ],
+    });
+  }
+  return exec(pool);
+}
+
+export async function POST(request) {
+  try {
+    const {
+      connStr,
+      query,
+      assertMaxMs = 100,
+      benchmarkRuns = 1,
+    } = await request.json();
+
+    if (!query?.trim()) {
+      return Response.json({ status: "fail", message: "Query requerida" }, { status: 400 });
+    }
+
+    return await runQuery({ connStr, query, assertMaxMs, benchmarkRuns });
   } catch (err) {
     return Response.json(
       { status: "fail", message: `Error interno: ${err.message}` },

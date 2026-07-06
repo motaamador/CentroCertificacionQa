@@ -1,30 +1,14 @@
 // src/app/api/fn-tester/route.js
 // Introspección genérica del catálogo PostgreSQL + ejecución de funciones
 
-import { Pool } from "pg";
-
-let pool = null;
+import { getServerPool } from "@/lib/pg-pool";
 
 function getPool(envHeader = "dev") {
-  let envVar = "DATABASE_URL";
-  if (envHeader === "qa") envVar = "QA_DATABASE_URL";
-  if (envHeader === "prod") envVar = "PROD_DATABASE_URL";
-  
-  const connStr = process.env[envVar] || process.env.DATABASE_URL;
-
-  if (!global.pools) global.pools = {};
-  if (!global.pools[envHeader]) {
-    global.pools[envHeader] = new Pool({
-      connectionString: connStr,
-      connectionTimeoutMillis: 8000,
-      idleTimeoutMillis: 10000,
-      max: 3,
-    });
-    pool.on("connect", (client) => {
-      client.query("SET search_path TO invme, public");
-    });
-  }
-  return global.pools[envHeader];
+  const envVar =
+    envHeader === "qa"   ? "QA_DATABASE_URL"   :
+    envHeader === "prod" ? "PROD_DATABASE_URL" :
+    "DATABASE_URL";
+  return getServerPool(envVar);
 }
 
 // ── GET: Lista todas las funciones de un esquema con sus parámetros ──────────

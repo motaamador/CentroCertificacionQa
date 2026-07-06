@@ -1,30 +1,38 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Activity, ShieldAlert, Database,
   Wifi, History, ChevronLeft, ChevronRight,
-  Shield, Zap, Terminal, FileText, Search, Layers
+  Shield, Zap, Terminal, FileText, Search, Layers, LogOut, User, Users
 } from "lucide-react";
 
-const NAV = [
+const BASE_NAV = [
   { id: "dashboard",    label: "Dashboard",      icon: LayoutDashboard, color: "#6366f1" },
   { id: "api",          label: "API Tester",      icon: Activity,        color: "#3b82f6" },
   { id: "security",     label: "Security Scan",   icon: ShieldAlert,     color: "#10b981" },
   { id: "database",     label: "DB Tester",       icon: Database,        color: "#8b5cf6" },
   { id: "connectivity", label: "Connectivity",    icon: Wifi,            color: "#f59e0b" },
   { id: "curl",         label: "cURL Runner",     icon: Terminal,        color: "#06b6d4" },
-  { id: "sql-analyzer",    label: "SQL Analyzer",   icon: Search,  color: "#06b6d4" },
-  { id: "collections",    label: "Colecciones",    icon: Layers,  color: "#8b5cf6" },
-  { id: "history",        label: "History",        icon: History, color: "#64748b" },
+  { id: "sql-analyzer", label: "SQL Analyzer",    icon: Search,          color: "#06b6d4" },
+  { id: "collections",  label: "Colecciones",     icon: Layers,          color: "#8b5cf6" },
+  { id: "history",      label: "History",         icon: History,         color: "#64748b" },
   { id: "report",       label: "Reporte PDF",     icon: FileText,        color: "#6366f1" },
 ];
 
-export default function Shell({ activeTab, onTabChange, children }) {
+const ADMIN_NAV = [
+  { id: "users", label: "Usuarios", icon: Users, color: "#f59e0b" },
+];
+
+export default function Shell({ activeTab, onTabChange, children, user }) {
+  const NAV = user?.role === "admin" ? [...BASE_NAV, ...ADMIN_NAV] : BASE_NAV;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [qaEnv, setQaEnv] = useState("dev");
+  const [loggingOut, setLoggingOut] = useState(false);
+  const router = useRouter();
 
   const [timeStr, setTimeStr] = useState("");
 
@@ -45,6 +53,13 @@ export default function Shell({ activeTab, onTabChange, children }) {
     setQaEnv(val);
     localStorage.setItem("qa_env", val);
     window.dispatchEvent(new Event('qa_env_changed'));
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
   };
 
   const current = NAV.find(n => n.id === activeTab) || NAV[0];
@@ -188,18 +203,42 @@ export default function Shell({ activeTab, onTabChange, children }) {
               </select>
             </div>
             <div style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "4px 10px", borderRadius: 20, border: "1px solid var(--border)",
-              background: "var(--bg-card)", display: "none"
-            }}>
-              <Zap size={11} color="var(--accent-yellow)" />
-              <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 500 }}>Sistema Activo</span>
-            </div>
-            <div style={{
               fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-geist-mono)"
             }}>
               {timeStr}
             </div>
+            {/* Usuario activo */}
+            {user && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 20, border: "1px solid var(--border)", background: "var(--bg-card)" }}>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <User size={12} color="white" />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
+                    {user.full_name || user.username}
+                  </span>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "capitalize" }}>
+                    {user.role}
+                  </span>
+                </div>
+              </div>
+            )}
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              title="Cerrar sesión"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 32, height: 32, borderRadius: 8,
+                border: "1px solid var(--border)", background: "var(--bg-card)",
+                color: "var(--text-muted)", cursor: "pointer", transition: "all 0.2s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.1)"; e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)"; }}
+            >
+              <LogOut size={14} />
+            </button>
           </div>
         </header>
 

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Shield, Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const params = useSearchParams();
   const expired = params.get("expired") === "1";
@@ -288,3 +288,19 @@ export default function LoginPage() {
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#0f0f1a", color: "#f8fafc", fontFamily: "sans-serif"
+      }}>
+        Cargando formulario de acceso...
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
